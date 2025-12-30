@@ -6,37 +6,43 @@
     <title>Poti Game</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
   <style>
-    body { 
-      margin: 0; 
+    /* Make the app truly full-screen and use safe-area insets */
+    html, body {
+      margin: 0;
       padding: 0;
-      background: #222; 
-      display: flex; 
-      justify-content: center; 
-      align-items: center; 
-      height: 100vh; 
-      width: 100vw;
+      height: 100%;
+      width: 100%;
+      background: #222;
       overflow: hidden;
-      touch-action: none; /* Prevent default touch behaviors */
-      -webkit-touch-callout: none; /* Disable callout on iOS */
-      -webkit-user-select: none; /* Disable text selection */
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
       user-select: none;
     }
+
+    #phaser-game {
+      position: fixed;
+      inset: 0; /* top:0; left:0; right:0; bottom:0 */
+      width: 100vw;
+      height: 100vh;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      box-sizing: border-box;
+      display: block;
+      -webkit-transform: translateZ(0);
+    }
+
     canvas {
       display: block;
       width: 100% !important;
       height: 100% !important;
     }
-
-    /* Use safe-area insets on iOS to avoid notch/homebar overlap */
-    body {
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: env(safe-area-inset-bottom);
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
-    }
   </style>
 </head>
 <body>
+  <div id="phaser-game"></div>
 
 <script>
 class GameScene extends Phaser.Scene {
@@ -71,9 +77,15 @@ class GameScene extends Phaser.Scene {
     this.displayWidth = this.scale.displaySize.width;
     this.displayHeight = this.scale.displaySize.height;
 
-    // 1. BACKGROUND
-    const bg = this.add.image(this.gameWidth / 2, this.gameHeight / 2, 'background');
-    bg.setDisplaySize(this.gameWidth, this.gameHeight);
+    // 1. BACKGROUND & scale factors
+    // Use the actual display size so objects map correctly to portrait/landscape
+    const dispW = this.scale.displaySize.width;
+    const dispH = this.scale.displaySize.height;
+    const sx = dispW / this.gameWidth;
+    const sy = dispH / this.gameHeight;
+
+    const bg = this.add.image(0, 0, 'background').setOrigin(0, 0);
+    bg.setDisplaySize(dispW, dispH);
 
     // 2. GENERATE TEXTURES
     this.makeBetterPlayer(); 
@@ -83,39 +95,43 @@ class GameScene extends Phaser.Scene {
 
     // 3. PHYSICS & FLOOR
     this.platforms = this.physics.add.staticGroup();
-    const groundY = this.gameHeight - 105; // Position ground near bottom
-    const groundBody = this.add.rectangle(this.gameWidth / 2, groundY, this.gameWidth, 20, 0x000000, 0);
+    const groundYBase = this.gameHeight - 105; // base coordinate
+    const groundY = groundYBase * sy;
+    const groundBody = this.add.rectangle((this.gameWidth/2) * sx, groundY, this.gameWidth * sx, 20 * sy, 0x000000, 0);
     this.physics.add.existing(groundBody, true);
     this.platforms.add(groundBody);
 
-    // 4. PLATFORMS - Scale positions based on screen size
-    const scaleX = this.gameWidth / 1200;
-    const scaleY = this.gameHeight / 700;
-    const levelLayout = [
-      {x: 220 * scaleX, y: 440 * scaleY, w: 150 * scaleX, c: 'plat_red'},
-      {x: 450 * scaleX, y: 360 * scaleY, w: 150 * scaleX, c: 'plat_blue'},
-      {x: 680 * scaleX, y: 400 * scaleY, w: 130 * scaleX, c: 'plat_yellow'},
-      {x: 580 * scaleX, y: 230 * scaleY, w: 150 * scaleX, c: 'plat_green'},
-      {x: 880 * scaleX, y: 300 * scaleY, w: 150 * scaleX, c: 'plat_red'},
-      {x: 1080 * scaleX, y: 340 * scaleY, w: 130 * scaleX, c: 'plat_blue'}
+    // 4. PLATFORMS - scaled positions
+    const levelLayoutBase = [
+      {x: 220, y: 440, w: 150, c: 'plat_red'},
+      {x: 450, y: 360, w: 150, c: 'plat_blue'},
+      {x: 680, y: 400, w: 130, c: 'plat_yellow'},
+      {x: 580, y: 230, w: 150, c: 'plat_green'},
+      {x: 880, y: 300, w: 150, c: 'plat_red'},
+      {x: 1080, y: 340, w: 130, c: 'plat_blue'}
     ];
 
-    levelLayout.forEach(p => {
-      const plat = this.platforms.create(p.x, p.y, p.c);
-      plat.setDisplaySize(p.w, 35);
+    levelLayoutBase.forEach(pb => {
+      const px = pb.x * sx;
+      const py = pb.y * sy;
+      const pw = pb.w * sx;
+      const plat = this.platforms.create(px, py, pb.c);
+      plat.setDisplaySize(pw, 35 * sy);
       plat.refreshBody();
     });
 
-    // 5. TRASH CAN - Position relative to screen
-    const trashCanX = this.gameWidth - 70 * scaleX;
-    const trashCanY = groundY - 40;
+    // 5. TRASH CAN - scaled
+    const trashCanX = (this.gameWidth - 70) * sx;
+    const trashCanY = (groundYBase - 40) * sy;
     this.trashCan = this.physics.add.staticSprite(trashCanX, trashCanY, 'trashcan');
-    this.trashCan.setDisplaySize(60 * scaleX, 80 * scaleY);
+    this.trashCan.setDisplaySize(60 * sx, 80 * sy);
     this.trashCan.setDepth(5);
-    
-    // 6. PLAYER - Position relative to screen (start with idle texture)
-    this.player = this.physics.add.sprite(100 * scaleX, (groundY - 95) * scaleY, 'player_idle');
-    this.player.setDisplaySize(50 * scaleX, 90 * scaleY);
+
+    // 6. PLAYER - scaled start position
+    const playerX = 100 * sx;
+    const playerY = (groundYBase - 95) * sy;
+    this.player = this.physics.add.sprite(playerX, playerY, 'player_idle');
+    this.player.setDisplaySize(50 * sx, 90 * sy);
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(10);
     this.player.setBounce(0.1);
@@ -124,11 +140,14 @@ class GameScene extends Phaser.Scene {
     this.walkFrame = 0;      // 0 = idle, 1 & 2 = walking frames
     this.walkAnimTime = 0;   // time accumulator for walk animation
 
-    // 7. BOTTLES
+    // 7. BOTTLES - scaled
     this.bottles = this.physics.add.group();
-    levelLayout.forEach(p => {
-      const b = this.bottles.create(p.x, p.y - 60, 'glass');
+    levelLayoutBase.forEach(pb => {
+      const bx = pb.x * sx;
+      const by = (pb.y - 60) * sy;
+      const b = this.bottles.create(bx, by, 'glass');
       b.body.allowGravity = false;
+      b.setDisplaySize(30 * sx, 50 * sy);
     });
 
     // COLLIDERS
@@ -146,7 +165,7 @@ class GameScene extends Phaser.Scene {
     this.deposited = 0;
     // Score text - responsive font size
     const fontSize = this.isMobile ? 18 : 26;
-    this.scoreText = this.add.text(20 * scaleX, 20 * scaleY, 'ჩანთაში: 0 | შეგროვებული: 0', {
+    this.scoreText = this.add.text(20 * sx, 20 * sy, 'ჩანთაში: 0 | შეგროვებული: 0', {
       fontSize: fontSize + 'px', fill: '#fff', stroke: '#000', strokeThickness: 5
     }).setScrollFactor(0);
 
@@ -369,23 +388,25 @@ class GameScene extends Phaser.Scene {
 
   // --- POPUP UI FUNCTION ---
   showPopup(titleText, descText, btnLabel, callback) {
-    const centerX = this.gameWidth / 2;
-    const centerY = this.gameHeight / 2;
     const isMobile = this.isMobile;
-    
+    const dispW = this.scale.displaySize.width;
+    const dispH = this.scale.displaySize.height;
+    const centerX = Math.round(dispW / 2);
+    const centerY = Math.round(dispH / 2);
+
     // Dark Overlay - positioned at screen center
-    const overlay = this.add.rectangle(centerX, centerY, this.gameWidth, this.gameHeight, 0x000000, 0.7).setDepth(99);
-    
+    const overlay = this.add.rectangle(centerX, centerY, dispW, dispH, 0x000000, 0.7).setDepth(99);
+
     // Container for popup elements
     const container = this.add.container(centerX, centerY).setDepth(100);
 
-    // Responsive popup sizes
-    const boxWidth = isMobile ? this.gameWidth * 0.85 : 450;
-    const boxHeight = isMobile ? this.gameHeight * 0.5 : 300;
+    // Responsive popup sizes (use display size to compute)
+    const boxWidth = isMobile ? Math.round(dispW * 0.85) : 450;
+    const boxHeight = isMobile ? Math.round(dispH * 0.5) : 300;
     const titleFontSize = isMobile ? 32 : 42;
     const descFontSize = isMobile ? 18 : 22;
     const btnFontSize = isMobile ? 20 : 24;
-    const btnWidth = isMobile ? boxWidth * 0.7 : 220;
+    const btnWidth = isMobile ? Math.round(boxWidth * 0.7) : 220;
     const btnHeight = isMobile ? 50 : 60;
 
     // Background Box
