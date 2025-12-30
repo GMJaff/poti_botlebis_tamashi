@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Poti Game</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
   <style>
@@ -25,23 +25,14 @@
       display: block;
       width: 100% !important;
       height: 100% !important;
-      object-fit: contain;
     }
-    
-    /* For iPhone - scale down slightly */
-    @media screen and (max-width: 430px) and (-webkit-min-device-pixel-ratio: 2) {
-      canvas {
-        transform: scale(0.85);
-        transform-origin: center;
-      }
-    }
-    
-    /* For Android - scale up slightly */
-    @media screen and (max-width: 500px) and (max-resolution: 300dpi) {
-      canvas {
-        transform: scale(1.15);
-        transform-origin: center;
-      }
+
+    /* Use safe-area insets on iOS to avoid notch/homebar overlap */
+    body {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
     }
   </style>
 </head>
@@ -556,6 +547,7 @@ const config = {
   width: baseWidth,
   height: baseHeight,
   physics: { default: 'arcade', arcade: { gravity: { y: 1300 }, debug: false } },
+  resolution: window.devicePixelRatio || 1,
   scene: GameScene,
   scale: {
     mode: Phaser.Scale.FIT,
