@@ -251,11 +251,18 @@ class GameScene extends Phaser.Scene {
     const btnFontSize = this.isMobile ? 40 : 32;
     const jumpFontSize = this.isMobile ? 44 : 36;
 
-    // Button positions - bottom of screen (use base game coordinates)
-    const btnY = 600; // Fixed position in game coordinates
-    const leftBtnX = 80;
-    const rightBtnX = 160;
-    const jumpBtnX = 1100;
+    // Compute positions based on actual display size so portrait/landscape work
+    const displayW = this.scale.displaySize.width;
+    const displayH = this.scale.displaySize.height;
+
+    const bottomOffset = Math.max(60, Math.round(displayH * 0.08));
+    const btnY = displayH - bottomOffset;
+
+    // Horizontal offsets from edges
+    const edgePadding = Math.max(40, Math.round(displayW * 0.06));
+    const leftBtnX = edgePadding + btnRadius;
+    const rightBtnX = leftBtnX + (btnRadius * 2) + 16;
+    const jumpBtnX = displayW - edgePadding - jumpBtnRadius;
 
     // Button style
     const buttonStyle = {
@@ -275,9 +282,13 @@ class GameScene extends Phaser.Scene {
       .setDepth(51)
       .setScrollFactor(0);
 
-    leftBtn.on('pointerdown', (pointer) => { this._touchPointerMap[pointer.id] = 'left'; this.leftButtonPressed = true; });
-    leftBtn.on('pointerup', (pointer) => { if (this._touchPointerMap[pointer.id] === 'left') { this.leftButtonPressed = false; delete this._touchPointerMap[pointer.id]; } });
-    leftBtn.on('pointerupoutside', (pointer) => { if (this._touchPointerMap[pointer.id] === 'left') { this.leftButtonPressed = false; delete this._touchPointerMap[pointer.id]; } });
+    // Add a larger invisible hit area behind the visible circle for easier tapping
+    const leftHit = this.add.circle(leftBtnX, btnY, btnRadius + 18, 0x000000, 0.001).setInteractive({ useHandCursor: true }).setDepth(49).setScrollFactor(0);
+    leftHit.on('pointerdown', (pointer) => { this._touchPointerMap[pointer.id] = 'left'; this.leftButtonPressed = true; });
+    leftHit.on('pointerup', (pointer) => { if (this._touchPointerMap[pointer.id] === 'left') { this.leftButtonPressed = false; delete this._touchPointerMap[pointer.id]; } });
+    leftHit.on('pointerupoutside', (pointer) => { if (this._touchPointerMap[pointer.id] === 'left') { this.leftButtonPressed = false; delete this._touchPointerMap[pointer.id]; } });
+    leftBtn.setPosition(leftBtnX, btnY);
+    leftText.setPosition(leftBtnX, btnY);
 
     // Right button
     const rightBtn = this.add.circle(rightBtnX, btnY, btnRadius, 0x43a047, 0.8)
@@ -289,9 +300,12 @@ class GameScene extends Phaser.Scene {
       .setDepth(51)
       .setScrollFactor(0);
 
-    rightBtn.on('pointerdown', (pointer) => { this._touchPointerMap[pointer.id] = 'right'; this.rightButtonPressed = true; });
-    rightBtn.on('pointerup', (pointer) => { if (this._touchPointerMap[pointer.id] === 'right') { this.rightButtonPressed = false; delete this._touchPointerMap[pointer.id]; } });
-    rightBtn.on('pointerupoutside', (pointer) => { if (this._touchPointerMap[pointer.id] === 'right') { this.rightButtonPressed = false; delete this._touchPointerMap[pointer.id]; } });
+    const rightHit = this.add.circle(rightBtnX, btnY, btnRadius + 18, 0x000000, 0.001).setInteractive({ useHandCursor: true }).setDepth(49).setScrollFactor(0);
+    rightHit.on('pointerdown', (pointer) => { this._touchPointerMap[pointer.id] = 'right'; this.rightButtonPressed = true; });
+    rightHit.on('pointerup', (pointer) => { if (this._touchPointerMap[pointer.id] === 'right') { this.rightButtonPressed = false; delete this._touchPointerMap[pointer.id]; } });
+    rightHit.on('pointerupoutside', (pointer) => { if (this._touchPointerMap[pointer.id] === 'right') { this.rightButtonPressed = false; delete this._touchPointerMap[pointer.id]; } });
+    rightBtn.setPosition(rightBtnX, btnY);
+    rightText.setPosition(rightBtnX, btnY);
 
     // Jump button (on the right side)
     const jumpBtn = this.add.circle(jumpBtnX, btnY, jumpBtnRadius, 0xff6b35, 0.8)
@@ -308,26 +322,49 @@ class GameScene extends Phaser.Scene {
       .setDepth(51)
       .setScrollFactor(0);
 
-    jumpBtn.on('pointerdown', (pointer) => { 
+    const jumpHit = this.add.circle(jumpBtnX, btnY, jumpBtnRadius + 20, 0x000000, 0.001).setInteractive({ useHandCursor: true }).setDepth(49).setScrollFactor(0);
+    jumpHit.on('pointerdown', (pointer) => { 
       this._touchPointerMap[pointer.id] = 'jump';
       this.jumpButtonPressed = true;
       this.jumpButtonJustPressed = true;
-      // Also trigger jump immediately if on ground
       if (this.gameActive && (this.player.body.touching.down || this.player.body.blocked.down)) {
         this.player.setVelocityY(-720);
       }
     });
-    jumpBtn.on('pointerup', (pointer) => { 
+    jumpHit.on('pointerup', (pointer) => { 
       if (this._touchPointerMap[pointer.id] === 'jump') { this.jumpButtonPressed = false; this.jumpButtonJustPressed = false; delete this._touchPointerMap[pointer.id]; }
     });
-    jumpBtn.on('pointerupoutside', (pointer) => { 
+    jumpHit.on('pointerupoutside', (pointer) => { 
       if (this._touchPointerMap[pointer.id] === 'jump') { this.jumpButtonPressed = false; this.jumpButtonJustPressed = false; delete this._touchPointerMap[pointer.id]; }
     });
+    jumpBtn.setPosition(jumpBtnX, btnY);
+    jumpText.setPosition(jumpBtnX, btnY);
 
     // Store references
     this.touchControls = {
-      leftBtn, leftText, rightBtn, rightText, jumpBtn, jumpText
+      leftBtn, leftText, rightBtn, rightText, jumpBtn, jumpText,
+      leftHit, rightHit, jumpHit
     };
+
+    // Reposition on resize/orientation change
+    const reposition = () => {
+      const w = this.scale.displaySize.width;
+      const h = this.scale.displaySize.height;
+      const bottom = h - Math.max(60, Math.round(h * 0.08));
+      const edge = Math.max(40, Math.round(w * 0.06));
+      const lx = edge + btnRadius;
+      const rx = lx + (btnRadius * 2) + 16;
+      const jx = w - edge - jumpBtnRadius;
+
+      leftBtn.setPosition(lx, bottom); leftText.setPosition(lx, bottom); this.touchControls.leftHit.setPosition(lx, bottom);
+      rightBtn.setPosition(rx, bottom); rightText.setPosition(rx, bottom); this.touchControls.rightHit.setPosition(rx, bottom);
+      jumpBtn.setPosition(jx, bottom); jumpText.setPosition(jx, bottom); this.touchControls.jumpHit.setPosition(jx, bottom);
+    };
+
+    this.scale.on('resize', reposition);
+    window.addEventListener('resize', reposition);
+    // Initial position (ensure correct placement)
+    reposition();
   }
 
   // --- POPUP UI FUNCTION ---
